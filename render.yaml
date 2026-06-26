@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: litsieve
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: HOST=0.0.0.0 python server.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: DEEPSEEK_API_BASE
+        value: https://api.deepseek.com/chat/completions

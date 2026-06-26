@@ -1,0 +1,977 @@
+const demoPapers = [
+  {
+    name: "現代日本語における敬語体系の変化.txt",
+    type: "paper",
+    language: "ja",
+    text: "摘要：本稿は現代日本語の敬語体系、尊敬語、謙譲語、丁寧語の再編を対象とする。方法：大学生の会話データを分析し、敬語使用の社会言語学的変化と待遇表現の機能を論じる。結論：敬語体系は固定的な分類ではなく、場面と人間関係によって再編される。",
+  },
+  {
+    name: "日本語教育とコミュニケーション研究.md",
+    type: "book",
+    language: "ja",
+    text: "第一章 日本語教育の制度史：学校教育と教材の変遷を扱う。\n第二章 学習者の発話分析：誤用と訂正フィードバックを検討する。\n第三章 敬語指導と待遇表現：学習者が尊敬語、謙譲語、丁寧語をどのように習得するかを授業観察と作文資料から分析する。\n第四章 異文化コミュニケーション：ポライトネス理論と教室活動を扱う。",
+  },
+  {
+    name: "平安文学に見る宮廷儀礼と語り.txt",
+    type: "paper",
+    language: "ja",
+    text: "本稿は平安文学における宮廷儀礼、和歌、物語構造を中心に考察する。登場人物の発話には敬語が見られるが、本稿の主題は儀礼空間と叙述技法であり、敬語体系そのものの分析ではない。",
+  },
+  {
+    name: "ビジネスメールのポライトネスと依頼表現.txt",
+    type: "paper",
+    language: "ja",
+    text: "日本企業のビジネスメールを資料として、依頼表現、断り表現、敬語、ポライトネス・ストラテジーを分析する。職場における待遇表現の選択要因を示すため、依頼場面と上下関係を比較する。",
+  },
+  {
+    name: "朝日新聞：接客現場で変わる敬語表現.txt",
+    type: "news",
+    language: "ja",
+    text: "記事は小売店と飲食店の接客現場で使われる敬語表現の変化を報じる。専門研究ではないが、若年層スタッフの言い換え、過剰敬語、顧客との距離感について事例を示す。",
+  },
+  {
+    name: "若者言葉とSNSコミュニケーション.txt",
+    type: "paper",
+    language: "ja",
+    text: "若者言葉、SNS、絵文字、略語の機能を考察する。敬語の使用頻度にも触れるが、中心課題はオンライン上の親密性表現と新語の拡散である。",
+  },
+  {
+    name: "扫描版会议报告_敬语教育案例.pdf",
+    type: "image",
+    language: "ja",
+    text: "",
+    ocrNote: "扫描型 PDF 将交给模型全文读取；文件名显示其可能与敬语教育案例相关。",
+  },
+];
+
+const statusMap = {
+  keep: { label: "核心可用", list: "keepList", count: "keepCount" },
+  maybe: { label: "局部可用/模型分析", list: "maybeList", count: "maybeCount" },
+  reject: { label: "不建议使用", list: "rejectList", count: "rejectCount" },
+};
+
+const INTERNAL_ANALYZE_ENDPOINT = "/api/analyze";
+const MODEL_ENGINE_NAME = "DeepSeek";
+
+const outputLanguages = [
+  "中文",
+  "桑戈语",
+  "英语",
+  "俄语",
+  "德语",
+  "法语",
+  "西班牙语",
+  "阿拉伯语",
+  "日语",
+  "波斯语",
+  "朝鲜语",
+  "菲律宾语",
+  "梵语巴利语",
+  "印度尼西亚语",
+  "印地语",
+  "柬埔寨语",
+  "老挝语",
+  "缅甸语",
+  "马来语",
+  "蒙古语",
+  "僧伽罗语",
+  "泰语",
+  "乌尔都语",
+  "希伯来语",
+  "越南语",
+  "豪萨语",
+  "斯瓦希里语",
+  "阿尔巴尼亚语",
+  "保加利亚语",
+  "波兰语",
+  "捷克语",
+  "斯洛伐克语",
+  "罗马尼亚语",
+  "葡萄牙语",
+  "瑞典语",
+  "塞尔维亚语",
+  "土耳其语",
+  "希腊语",
+  "匈牙利语",
+  "意大利语",
+  "泰米尔语",
+  "普什图语",
+  "世界语",
+  "孟加拉语",
+  "尼泊尔语",
+  "克罗地亚语",
+  "荷兰语",
+  "芬兰语",
+  "乌克兰语",
+  "挪威语",
+  "丹麦语",
+  "冰岛语",
+  "爱尔兰语",
+  "拉脱维亚语",
+  "立陶宛语",
+  "斯洛文尼亚语",
+  "爱沙尼亚语",
+  "马耳他语",
+  "哈萨克语",
+  "乌兹别克语",
+  "祖鲁语",
+  "拉丁语",
+  "阿姆哈拉语",
+  "吉尔吉斯语",
+  "索马里语",
+  "土库曼语",
+  "加泰罗尼亚语",
+  "约鲁巴语",
+  "亚美尼亚语",
+  "马达加斯加语",
+  "格鲁吉亚语",
+  "阿塞拜疆语",
+  "阿非利卡语",
+  "马其顿语",
+  "塔吉克语",
+  "茨瓦纳语",
+  "恩德贝莱语",
+  "科摩罗语",
+  "克里奥尔语",
+  "绍纳语",
+  "提格雷尼亚语",
+  "白俄罗斯语",
+  "毛利语",
+  "汤加语",
+  "萨摩亚语",
+  "库尔德语",
+  "比斯拉马语",
+  "达里语",
+  "德顿语",
+  "迪维希语",
+  "斐济语",
+  "库克群岛毛利语",
+  "隆迪语",
+  "卢森堡语",
+  "卢旺达语",
+  "纽埃语",
+  "皮金语",
+  "切瓦语",
+  "塞苏陀语",
+  "塔玛齐格特语",
+  "爪哇语",
+  "旁遮普语",
+];
+
+const state = {
+  papers: [],
+  results: [],
+  selectedId: null,
+  activeView: "screening",
+  fileListExpanded: false,
+  engineMode: "unknown",
+};
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+const elements = {
+  fileInput: $("#fileInput"),
+  dropZone: $("#dropZone"),
+  fileStack: $("#fileStack"),
+  fileCount: $("#fileCount"),
+  toggleFiles: $("#toggleFiles"),
+  clearFiles: $("#clearFiles"),
+  keywordInput: $("#keywordInput"),
+  keywordMode: $("#keywordMode"),
+  materialType: $("#materialType"),
+  outputLanguage: $("#outputLanguage"),
+  modelStatus: $("#modelStatus"),
+  intentInput: $("#intentInput"),
+  pasteInput: $("#pasteInput"),
+  thresholdInput: $("#thresholdInput"),
+  thresholdValue: $("#thresholdValue"),
+  analyzeButton: $("#analyzeButton"),
+  loadDemo: $("#loadDemo"),
+  copyReport: $("#copyReport"),
+  refreshExport: $("#refreshExport"),
+  exportBox: $("#exportBox"),
+  boardSummary: $("#boardSummary"),
+  hitRate: $("#hitRate"),
+  inspectorBody: $("#inspectorBody"),
+};
+
+function normalize(text) {
+  return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function splitTerms(text) {
+  return normalize(text)
+    .split(/[,\s，、;；/]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 1);
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function deriveTitle(name) {
+  return name.replace(/\.(txt|md|csv|pdf|doc|docx|png|jpg|jpeg|webp|tif|tiff)$/i, "").replaceAll("_", " ");
+}
+
+function typeLabel(type) {
+  return {
+    paper: "论文/期刊",
+    book: "专著/编著",
+    news: "新闻/报纸",
+    report: "报告",
+    image: "图片/扫描件",
+    snippet: "文字片段",
+    mixed: "混合材料",
+  }[type] || "材料";
+}
+
+function expandConceptTerms(rawTerms) {
+  const conceptMap = [
+    {
+      keys: [
+        "文学理论",
+        "文學理論",
+        "literary theory",
+        "literary theories",
+        "文艺理论",
+        "文藝理論",
+        "literary criticism",
+        "critical theory",
+        "narratology",
+        "叙事学",
+        "structuralism",
+        "结构主义",
+        "post-structuralism",
+        "后结构主义",
+        "deconstruction",
+        "解构主义",
+        "formalism",
+        "形式主义",
+        "feminism",
+        "女性主义",
+        "女权主义",
+        "marxism",
+        "马克思主义",
+        "psychoanalysis",
+        "精神分析",
+        "postcolonial",
+        "后殖民",
+      ],
+      terms: [
+        "文学理论",
+        "文艺理论",
+        "文学批评",
+        "literary theory",
+        "literary criticism",
+        "critical theory",
+        "narratology",
+        "structuralism",
+        "post-structuralism",
+        "deconstruction",
+        "formalism",
+        "new criticism",
+        "feminism",
+        "marxism",
+        "psychoanalysis",
+        "postcolonial",
+        "reader-response",
+        "reception aesthetics",
+        "叙事学",
+        "结构主义",
+        "后结构主义",
+        "解构主义",
+        "形式主义",
+        "新批评",
+        "女性主义",
+        "女权主义",
+        "马克思主义",
+        "精神分析",
+        "后殖民",
+        "接受美学",
+      ],
+    },
+    {
+      keys: ["敬语", "敬語", "keigo", "honorific", "honorifics"],
+      terms: [
+        "敬语",
+        "敬語",
+        "keigo",
+        "honorific",
+        "honorifics",
+        "politeness",
+        "待遇",
+        "待遇表現",
+        "尊敬語",
+        "謙譲語",
+        "丁寧語",
+        "ポライトネス",
+      ],
+    },
+  ];
+  const normalized = rawTerms.map(normalize);
+  const expanded = [...rawTerms];
+
+  conceptMap.forEach((entry) => {
+    if (entry.keys.some((key) => normalized.includes(normalize(key)))) {
+      expanded.push(...entry.terms);
+    }
+  });
+
+  return unique(expanded);
+}
+
+function outputLanguageName() {
+  return elements.outputLanguage.value || "中文";
+}
+
+function populateOutputLanguages() {
+  elements.outputLanguage.innerHTML = outputLanguages.map((language) => `<option value="${escapeHtml(language)}">${escapeHtml(language)}</option>`).join("");
+  elements.outputLanguage.value = "中文";
+}
+
+function getActiveRules() {
+  return $$(".rule-check")
+    .filter((input) => input.checked)
+    .map((input) => input.value);
+}
+
+function getRequirementModel() {
+  const keywordTerms = splitTerms(elements.keywordInput.value);
+  const intentTerms = splitTerms(elements.intentInput.value);
+  const exactTerms = unique(keywordTerms);
+  const conceptualTerms = expandConceptTerms([...keywordTerms, ...intentTerms]);
+  const keywordMode = elements.keywordMode.value;
+  const activeTopicTerms = keywordMode === "exact" ? exactTerms : conceptualTerms;
+
+  return {
+    keywordTerms,
+    exactTerms,
+    directTopicTerms: activeTopicTerms,
+    intentSignals: unique([...intentTerms, ...activeTopicTerms]),
+    keywordMode,
+    activeRules: getActiveRules(),
+    threshold: Number(elements.thresholdInput.value),
+    materialType: elements.materialType.value,
+    outputLanguage: outputLanguageName(),
+  };
+}
+
+function splitSegments(paper) {
+  if (!paper.text) {
+    return [
+      {
+        label: "模型全文分析",
+        text: paper.ocrNote || "该材料将由模型读取全文、抽取文字并生成内容概述。",
+      },
+    ];
+  }
+
+  const roughParts = paper.text
+    .split(/(?=第[一二三四五六七八九十\d]+[章节節])|(?=chapter\s+\d+)|\n{2,}/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (roughParts.length <= 1) {
+    return [{ label: "全文/摘要", text: paper.text.trim() }];
+  }
+
+  return roughParts.map((part, index) => {
+    const firstLine = part.split(/[：:\n。]/)[0].trim();
+    return {
+      label: firstLine.length > 4 && firstLine.length < 36 ? firstLine : `片段 ${index + 1}`,
+      text: part,
+    };
+  });
+}
+
+function detectLanguage(text, fallback) {
+  if (/[ぁ-んァ-ン一-龯]/.test(text) && /[ぁ-んァ-ン]/.test(text)) return "日文";
+  if (/[\u4e00-\u9fff]/.test(text)) return "中文";
+  if (/[a-z]{4,}/i.test(text)) return "英文/拉丁字母";
+  return fallback === "multi" ? "未判定" : fallback;
+}
+
+function scoreSegment(segment, paper, model) {
+  const title = normalize(paper.title);
+  const body = normalize(segment.text);
+  const combined = `${title} ${body}`;
+  const exactHits = model.exactTerms.filter((term) => combined.includes(normalize(term)));
+  const titleHits = model.directTopicTerms.filter((term) => title.includes(normalize(term)));
+  const bodyHits = model.intentSignals.filter((term) => combined.includes(normalize(term)));
+  const methodTerms = ["分析", "研究", "考察", "调查", "調査", "语料", "資料", "データ", "対象", "方法", "观察", "観察", "比较", "比較", "案例", "事例", "interview", "survey"];
+  const methodHits = methodTerms.filter((term) => combined.includes(normalize(term)));
+  const backgroundTerms = ["触れる", "提到", "出现", "現れる", "顺带", "本稿の主題", "不是", "中心課題", "不是核心", "not focus"];
+  const backgroundHits = backgroundTerms.filter((term) => combined.includes(normalize(term)));
+  const competingTerms = ["文学", "物語", "翻訳", "sns", "若者言葉", "絵文字", "新語", "和歌", "儀礼", "叙述"];
+  const competingHits = competingTerms.filter((term) => combined.includes(normalize(term)));
+
+  let score = paper.text ? 14 : 34;
+  score += Math.min(titleHits.length, 4) * 12;
+  score += Math.min(bodyHits.length, 8) * 7;
+  score += Math.min(exactHits.length, 3) * 8;
+  score += Math.min(methodHits.length, 4) * 5;
+  if (segment.label !== "全文/摘要" && bodyHits.length) score += 8;
+  if (paper.type === "news" && bodyHits.length) score -= 8;
+  if (!paper.text && (paper.type === "image" || paper.source === "模型全文读取")) score += 2;
+  if (model.activeRules.includes("exclude")) {
+    score -= Math.min(backgroundHits.length, 3) * 12;
+    score -= Math.min(competingHits.length, 3) * 7;
+  }
+  if (model.activeRules.includes("method") && methodHits.length === 0 && paper.type === "paper") score -= 8;
+  if (model.keywordMode === "exact" && exactHits.length === 0) score -= 24;
+  score = Math.max(6, Math.min(96, Math.round(score)));
+
+  return {
+    ...segment,
+    score,
+    exactHits,
+    titleHits,
+    bodyHits,
+    methodHits,
+    backgroundHits,
+    competingHits,
+  };
+}
+
+function scorePaper(paper, model) {
+  const segments = splitSegments(paper).map((segment) => scoreSegment(segment, paper, model));
+  const best = [...segments].sort((a, b) => b.score - a.score)[0];
+  const wholeStrong = best.label === "全文/摘要" && best.score >= model.threshold;
+  const localAllowed = model.activeRules.includes("section");
+  const hasReadableText = Boolean(paper.text);
+  const unreadNeedsOcr = !hasReadableText && model.activeRules.includes("ocr");
+
+  let status = "reject";
+  if (unreadNeedsOcr) status = "maybe";
+  else if (wholeStrong) status = "keep";
+  else if (localAllowed && best.score >= Math.max(42, model.threshold - 24)) status = "maybe";
+  else if (!hasReadableText) status = "maybe";
+
+  const tags = unique([
+    ...best.titleHits.slice(0, 3),
+    ...best.bodyHits.slice(0, 4),
+    ...best.exactHits.slice(0, 2),
+    ...best.methodHits.slice(0, 2),
+    typeLabel(paper.type),
+    detectLanguage(`${paper.title} ${paper.text}`, paper.language),
+  ]).slice(0, 7);
+
+  const contentSummary = summarizeContent(paper, segments);
+  const usableScope = buildUsableScope(paper, status, best, segments);
+  const selectionReason = buildSelectionReason(paper, status, best, model);
+  const limitations = buildLimitations(paper, status, best, hasReadableText);
+  const reason = status === "keep" ? "整体主题与研究意图吻合。" : status === "maybe" ? "存在可用章节或片段，但不宜作为整篇核心文献。" : "与当前主题的直接支撑不足。";
+
+  return {
+    ...paper,
+    score: best.score,
+    status,
+    tags: tags.length ? tags : ["待补充线索"],
+    segments,
+    bestSegment: best,
+    contentSummary,
+    usableScope,
+    selectionReason,
+    limitations,
+    reason,
+  };
+}
+
+function summarizeContent(paper, segments) {
+  const first = segments[0]?.text || "";
+  if (!paper.text) return paper.ocrNote || "该材料目前只有文件名或图像线索，尚未完成正文抽取；不能据此概述其内容，也不能直接判为不建议使用。";
+  const clean = first.replace(/\s+/g, " ").slice(0, 140);
+  return `${typeLabel(paper.type)}材料。可读内容显示：${clean}${first.length > 140 ? "..." : ""}`;
+}
+
+function buildUsableScope(paper, status, best, segments) {
+  if (!paper.text) return "进入模型全文读取流程。正式接入后应直接展示内容概述、命中章节和可用性判断。";
+  if (status === "keep") return "可作为核心文献使用，优先检查摘要、研究对象、方法与结论是否能支撑论文论点。";
+  if (status === "maybe") return `建议只使用“${best.label}”及其相邻段落；不要把整篇材料都视为关于该主题的核心文献。`;
+  const nearby = segments.find((segment) => segment.score >= 35);
+  return nearby ? `最多作为背景材料检查“${nearby.label}”，目前不建议进入核心参考文献。` : "未定位到足以支持当前主题的章节或段落。";
+}
+
+function buildSelectionReason(paper, status, best, model) {
+  const clauses = [];
+  if (model.keywordMode !== "exact") clauses.push("当前采用概念/译名匹配，不要求核心关键词以原词形式出现");
+  if (best.exactHits.length) clauses.push(`原词或明确译名命中：${best.exactHits.slice(0, 4).join("、")}`);
+  if (best.bodyHits.length) clauses.push(`相关概念线索集中在“${best.label}”：${best.bodyHits.slice(0, 5).join("、")}`);
+  if (best.methodHits.length) clauses.push(`材料含有研究对象、资料或分析动作：${best.methodHits.slice(0, 4).join("、")}`);
+  if (best.backgroundHits.length) clauses.push(`但存在背景性提及信号：${best.backgroundHits.slice(0, 3).join("、")}`);
+  if (best.competingHits.length) clauses.push(`同时有其他主导主题：${best.competingHits.slice(0, 3).join("、")}`);
+  if (!paper.text && model.activeRules.includes("ocr")) clauses.push("该材料需要由模型先完成全文读取；在没有全文结果前，不应作为不建议使用处理");
+  if (!clauses.length) clauses.push(status === "reject" ? "未发现足够的主题词、研究对象或章节标题线索。" : "与用户主题存在可解释的内容重合。");
+  return clauses.join("；") + "。";
+}
+
+function buildLimitations(paper, status, best, hasReadableText) {
+  if (!hasReadableText) return "正式版本应由模型读取扫描件、图片或图片型 PDF，并返回内容概述、命中章节和可引用页码。";
+  if (paper.type === "news") return "新闻材料更适合作为现象例证或背景材料，通常不能替代期刊论文、专著章节或研究报告。";
+  if (status === "maybe") return "引用时应限定到具体章节/段落，并在文献综述中说明其与主题的边界。";
+  if (status === "reject") return "可记录为检索排除项；若后续论文需要反例或背景介绍，再重新检查。";
+  return "仍需核对原文页码、出版信息和引用格式，避免只依据关键词进行机械引用。";
+}
+
+function ensurePastedMaterial() {
+  const text = elements.pasteInput.value.trim();
+  if (!text) return;
+  const existing = state.papers.find((paper) => paper.id === "pasted-material");
+  const paper = {
+    id: "pasted-material",
+    name: "用户粘贴材料片段",
+    title: "用户粘贴材料片段",
+    text,
+    type: "snippet",
+    language: "auto",
+    source: "直接粘贴",
+  };
+  if (existing) Object.assign(existing, paper);
+  else state.papers.unshift(paper);
+}
+
+async function analyze() {
+  if (!state.papers.length && !elements.pasteInput.value.trim()) {
+    loadDemo();
+    toast("已载入多类型示例材料");
+  }
+
+  ensurePastedMaterial();
+  const model = getRequirementModel();
+  elements.modelStatus.textContent = "分析中";
+  const requiresModel = state.papers.some((paper) => !paper.text && paper.file);
+
+  try {
+    const backendResult = await analyzeWithDeepSeekBackend(model);
+    state.results = backendResult.results;
+    state.engineMode = backendResult.engineMode;
+    elements.modelStatus.textContent = backendResult.engineMode === "local" ? "本地解析" : "已完成";
+  } catch (error) {
+    console.warn(error);
+    elements.modelStatus.textContent = "演示模式";
+    state.results = analyzeLocally(model);
+    if (requiresModel) {
+      state.results = state.results.map((result) =>
+        result.text
+          ? result
+          : {
+              ...result,
+              status: "maybe",
+              score: Math.max(result.score, 60),
+              contentSummary: "DeepSeek 服务接通后会直接读取该材料全文并生成摘要；当前静态演示只能显示文件名线索。",
+              usableScope: "正式产品中会展示可用章节、页码或片段位置。",
+              selectionReason: "该材料需要模型完成全文读取后才能给出最终选用或不选用原因；本地演示不作排除结论。",
+              limitations: "请以 DeepSeek 完整分析结果为准。",
+              reason: "等待 DeepSeek 完整分析结果。",
+            },
+      );
+    }
+    toast("当前为静态演示结果");
+  }
+
+  state.selectedId = state.results[0]?.id || null;
+  renderFiles();
+  renderResults();
+  renderInspector();
+  renderExport();
+}
+
+function analyzeLocally(model) {
+  return state.papers
+    .map((paper) => scorePaper(paper, model))
+    .sort((a, b) => b.score - a.score);
+}
+
+async function analyzeWithDeepSeekBackend(model) {
+  const form = new FormData();
+  form.append(
+    "request",
+    JSON.stringify({
+      keyword: elements.keywordInput.value,
+      keywordMode: model.keywordMode,
+      outputLanguage: model.outputLanguage,
+      materialType: model.materialType,
+      intent: elements.intentInput.value,
+      rules: model.activeRules,
+      threshold: model.threshold,
+      modelPreference: MODEL_ENGINE_NAME,
+      instructions:
+        "Read every uploaded file completely. For PDFs/images, extract text internally. Translate concepts across languages automatically. Return only final user-facing literature evaluation in the requested output language; do not expose technical extraction states.",
+    }),
+  );
+
+  state.papers.forEach((paper, index) => {
+    const meta = {
+      id: paper.id,
+      title: paper.title,
+      type: paper.type,
+      source: paper.source,
+      pastedText: paper.id === "pasted-material" ? paper.text : "",
+    };
+    form.append(`metadata_${index}`, JSON.stringify(meta));
+    if (paper.file) form.append("files", paper.file, paper.name);
+  });
+
+  const response = await fetch(INTERNAL_ANALYZE_ENDPOINT, { method: "POST", body: form });
+  if (!response.ok) throw new Error(`DeepSeek backend returned ${response.status}`);
+  const payload = await response.json();
+  const results = Array.isArray(payload.results) ? payload.results : [];
+  if (!results.length) throw new Error("DeepSeek backend returned no results");
+
+  return {
+    engineMode: payload.engineMode || "deepseek",
+    results: results.map(normalizeProxyResult).sort((a, b) => b.score - a.score),
+  };
+}
+
+function normalizeProxyResult(result, index) {
+  const sourcePaper = state.papers.find((paper) => paper.id === result.id) || state.papers[index] || {};
+  const status = ["keep", "maybe", "reject"].includes(result.status) ? result.status : "maybe";
+  return {
+    ...sourcePaper,
+    id: result.id || sourcePaper.id || `model-${index}`,
+    title: result.title || sourcePaper.title || `材料 ${index + 1}`,
+    score: Number(result.score) || 60,
+    status,
+    tags: Array.isArray(result.tags) && result.tags.length ? result.tags : [typeLabel(sourcePaper.type)],
+    segments: Array.isArray(result.segments) && result.segments.length ? result.segments : [{ label: "模型全文判断", score: Number(result.score) || 60, text: "" }],
+    bestSegment: result.bestSegment || { label: "模型全文判断", score: Number(result.score) || 60 },
+    contentSummary: result.contentSummary || "模型已完成全文读取，但后端未返回内容概述。",
+    usableScope: result.usableScope || "后端未返回可用范围。",
+    selectionReason: result.selectionReason || "后端未返回选用依据。",
+    limitations: result.limitations || "后端未返回使用限制。",
+    reason: result.reason || result.selectionReason || "模型返回了筛选判断。",
+  };
+}
+
+function renderFiles() {
+  elements.fileCount.textContent = `${state.papers.length} 条`;
+  elements.toggleFiles.textContent = state.fileListExpanded ? "收起列表" : "展开全部";
+
+  if (!state.papers.length) {
+    elements.fileStack.innerHTML = `<div class="empty-state">还没有加入材料。</div>`;
+    return;
+  }
+
+  const visiblePapers = state.fileListExpanded ? state.papers : state.papers.slice(0, 7);
+  elements.fileStack.innerHTML = visiblePapers
+    .map(
+      (paper) => `
+        <div class="file-chip" data-id="${paper.id}">
+          <span title="${escapeHtml(paper.name)}">${escapeHtml(paper.name)}</span>
+          <small>${escapeHtml(paper.source || typeLabel(paper.type))}</small>
+          <button class="remove-file" type="button" aria-label="删除 ${escapeHtml(paper.name)}" title="删除">×</button>
+        </div>
+      `,
+    )
+    .join("");
+
+  if (!state.fileListExpanded && state.papers.length > 7) {
+    elements.fileStack.insertAdjacentHTML("beforeend", `<div class="file-chip is-more"><span>还有 ${state.papers.length - 7} 条未显示</span><small>点“展开全部”查看</small></div>`);
+  }
+
+  $$(".remove-file").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removePaper(button.closest(".file-chip").dataset.id);
+    });
+  });
+}
+
+function removePaper(id) {
+  state.papers = state.papers.filter((paper) => paper.id !== id);
+  state.results = state.results.filter((paper) => paper.id !== id);
+  if (state.selectedId === id) state.selectedId = state.results[0]?.id || null;
+  renderFiles();
+  renderResults();
+  renderInspector();
+  renderExport();
+  toast("已删除该材料");
+}
+
+function clearPapers() {
+  state.papers = [];
+  state.results = [];
+  state.selectedId = null;
+  state.fileListExpanded = false;
+  renderFiles();
+  renderResults();
+  renderInspector();
+  renderExport();
+  toast("材料列表已清空");
+}
+
+function emptyColumnText(status) {
+  if (status === "keep") return "整篇或主体章节都能支撑论文主题的材料会出现在这里。";
+  if (status === "maybe") return "只有某章、某节、某段可用，或等待模型全文分析的材料会放在这里。";
+  return "仅背景提及、主题偏离或证据不足的材料会放在这里。";
+}
+
+function renderResults() {
+  const grouped = { keep: [], maybe: [], reject: [] };
+  state.results.forEach((paper) => grouped[paper.status].push(paper));
+
+  Object.entries(statusMap).forEach(([status, config]) => {
+    const list = $(`#${config.list}`);
+    const count = $(`#${config.count}`);
+    count.textContent = grouped[status].length;
+
+    if (!grouped[status].length) {
+      list.innerHTML = `<div class="empty-state">${emptyColumnText(status)}</div>`;
+      return;
+    }
+
+    list.innerHTML = grouped[status].map(renderPaperCard).join("");
+  });
+
+  $$(".paper-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      state.selectedId = card.dataset.id;
+      renderResults();
+      renderInspector();
+    });
+  });
+
+  const usable = grouped.keep.length + grouped.maybe.length;
+  elements.hitRate.textContent = state.results.length ? `${usable}/${state.results.length}` : "--";
+  elements.boardSummary.textContent = state.results.length
+    ? `已筛选 ${state.results.length} 条材料：核心可用 ${grouped.keep.length}，局部可用 ${grouped.maybe.length}，不建议使用 ${grouped.reject.length}。当前阈值为 ${elements.thresholdInput.value}，阈值越高越严格。`
+    : "载入示例或上传材料后，系统会定位整篇、章节或段落层面的可用性，并给出学术化理由。";
+}
+
+function renderPaperCard(paper) {
+  return `
+    <article class="paper-card ${paper.id === state.selectedId ? "is-selected" : ""}" data-id="${paper.id}" tabindex="0">
+      <div class="paper-topline">
+        <h2 class="paper-title">${escapeHtml(paper.title)}</h2>
+        <span class="score-pill">${paper.score}</span>
+      </div>
+      <p class="paper-meta">${escapeHtml(typeLabel(paper.type))} · 原文${escapeHtml(detectLanguage(`${paper.title} ${paper.text}`, paper.language))} · 输出${escapeHtml(outputLanguageName())} · ${paper.text ? `${paper.text.length} 字符线索` : "模型全文读取"}</p>
+      <div class="score-track" aria-hidden="true"><div class="score-fill" style="--score:${paper.score}%"></div></div>
+      <p class="paper-section">${escapeHtml(paper.usableScope)}</p>
+      <p class="reason">${escapeHtml(paper.reason)}</p>
+      <div class="tags">${paper.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
+    </article>
+  `;
+}
+
+function renderInspector() {
+  const paper = state.results.find((item) => item.id === state.selectedId);
+
+  if (!paper) {
+    elements.inspectorBody.className = "inspector-body empty";
+    elements.inspectorBody.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h10" /></svg>
+      <p>点击任意材料查看内容概述、可用范围和选用依据。</p>
+    `;
+    return;
+  }
+
+  elements.inspectorBody.className = "inspector-body";
+  elements.inspectorBody.innerHTML = `
+    <h2>${escapeHtml(paper.title)}</h2>
+    <div class="verdict ${paper.status}">
+      <span>${statusMap[paper.status].label}</span>
+      <strong>${paper.score}/100</strong>
+    </div>
+    <div class="explain-block">
+      <h3>内容概述</h3>
+      <p>${escapeHtml(paper.contentSummary)}</p>
+    </div>
+    <div class="explain-block">
+      <h3>可用范围</h3>
+      <p>${escapeHtml(paper.usableScope)}</p>
+    </div>
+    <div class="explain-block">
+      <h3>选用或不选用原因</h3>
+      <p>${escapeHtml(paper.selectionReason)}</p>
+    </div>
+    <div class="explain-block">
+      <h3>使用限制</h3>
+      <p>${escapeHtml(paper.limitations)}</p>
+    </div>
+    <div class="explain-block">
+      <h3>片段评分</h3>
+      <ul>${paper.segments
+        .slice()
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 4)
+        .map((segment) => `<li>${escapeHtml(segment.label)}：${segment.score}/100</li>`)
+        .join("")}</ul>
+    </div>
+  `;
+}
+
+async function readFiles(files) {
+  const loaded = await Promise.all(
+    Array.from(files).map(async (file, index) => {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const canReadText = ["txt", "md", "csv"].includes(extension);
+      const imageLike = ["png", "jpg", "jpeg", "webp", "tif", "tiff"].includes(extension);
+      const officeLike = ["pdf", "doc", "docx"].includes(extension);
+      let text = "";
+
+      if (canReadText) {
+        text = await file.text();
+      }
+
+      const inferredType = imageLike ? "image" : elements.materialType.value === "mixed" ? (officeLike ? "mixed" : "paper") : elements.materialType.value;
+      return {
+        id: `file-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+        file,
+        name: file.name,
+        title: deriveTitle(file.name),
+        text,
+        type: inferredType,
+        language: "auto",
+        source: canReadText ? extension.toUpperCase() : imageLike || officeLike ? "模型全文读取" : "文件名线索",
+        ocrNote: imageLike || officeLike ? "该材料将由 DeepSeek 读取全文并抽取文字、目录、章节和可引用片段；本地演示模式仅能显示文件名线索。" : "",
+      };
+    }),
+  );
+
+  state.papers = [...state.papers, ...loaded];
+  renderFiles();
+  toast(`已加入 ${loaded.length} 条材料`);
+}
+
+function loadDemo() {
+  state.papers = demoPapers.map((paper, index) => ({
+    id: `demo-${index}`,
+    name: paper.name,
+    title: deriveTitle(paper.name),
+    text: paper.text,
+    type: paper.type,
+    language: paper.language,
+    source: typeLabel(paper.type),
+    ocrNote: paper.ocrNote || "",
+  }));
+  state.results = [];
+  state.selectedId = null;
+  renderFiles();
+  renderResults();
+  renderInspector();
+  renderExport();
+}
+
+function makeReport() {
+  if (!state.results.length) return "";
+  const header = `输出语言：${outputLanguageName()}
+关键词匹配方式：${elements.keywordMode.options[elements.keywordMode.selectedIndex].text}
+说明：当前原型会记录用户希望的输出语言；正式接入模型后，内容概述和选用理由应全部用该语言生成。
+`;
+
+  const body = state.results
+    .map((paper, index) => {
+      return `${index + 1}. ${paper.title}
+判断：${statusMap[paper.status].label}（${paper.score}/100）
+材料类型：${typeLabel(paper.type)}
+内容概述：${paper.contentSummary}
+可用范围：${paper.usableScope}
+选用/不选用原因：${paper.selectionReason}
+使用限制：${paper.limitations}`;
+    })
+    .join("\n\n");
+  return `${header}\n${body}`;
+}
+
+function renderExport() {
+  if (!elements.exportBox) return;
+  elements.exportBox.value = makeReport();
+}
+
+function copyReport() {
+  const report = makeReport();
+  if (!report) {
+    toast("还没有筛选报告");
+    return;
+  }
+
+  navigator.clipboard
+    .writeText(report)
+    .then(() => toast("筛选报告已复制"))
+    .catch(() => toast("复制失败，可在导出页手动复制"));
+}
+
+function switchView(view) {
+  state.activeView = view;
+  $$(".nav-item").forEach((button) => button.classList.toggle("is-active", button.dataset.view === view));
+  $$(".view-screen").forEach((screen) => screen.classList.toggle("is-active", screen.id === `${view}View`));
+  if (view === "export") renderExport();
+}
+
+function toast(message) {
+  const existing = $(".toast");
+  existing?.remove();
+
+  const node = document.createElement("div");
+  node.className = "toast";
+  node.textContent = message;
+  document.body.appendChild(node);
+
+  window.requestAnimationFrame(() => node.classList.add("is-visible"));
+  window.setTimeout(() => node.classList.remove("is-visible"), 1800);
+  window.setTimeout(() => node.remove(), 2200);
+}
+
+elements.thresholdInput.addEventListener("input", () => {
+  elements.thresholdValue.textContent = elements.thresholdInput.value;
+});
+
+elements.fileInput.addEventListener("change", (event) => {
+  readFiles(event.target.files);
+  event.target.value = "";
+});
+
+["dragenter", "dragover"].forEach((eventName) => {
+  elements.dropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    elements.dropZone.classList.add("is-dragging");
+  });
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+  elements.dropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    elements.dropZone.classList.remove("is-dragging");
+  });
+});
+
+elements.dropZone.addEventListener("drop", (event) => {
+  readFiles(event.dataTransfer.files);
+});
+
+elements.analyzeButton.addEventListener("click", analyze);
+elements.loadDemo.addEventListener("click", () => {
+  loadDemo();
+  analyze();
+});
+elements.copyReport.addEventListener("click", copyReport);
+elements.toggleFiles.addEventListener("click", () => {
+  state.fileListExpanded = !state.fileListExpanded;
+  renderFiles();
+});
+elements.clearFiles.addEventListener("click", clearPapers);
+elements.refreshExport.addEventListener("click", () => {
+  renderExport();
+  toast("导出文本已生成");
+});
+$$(".nav-item").forEach((button) => {
+  button.addEventListener("click", () => switchView(button.dataset.view));
+});
+
+populateOutputLanguages();
+renderFiles();
+renderResults();
+renderInspector();
+renderExport();
