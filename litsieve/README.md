@@ -65,4 +65,5 @@ Health check:
 - Text PDFs, `.docx` files, images, and image-based PDFs are parsed by the backend before model analysis.
 - Image OCR requires Tesseract. The Dockerfile installs the full Tesseract language pack so scanned multilingual materials can be processed more broadly.
 - The frontend does not create local demo screening conclusions when the backend is unavailable. If `DEEPSEEK_API_KEY` is missing or the model call fails, users see a service error rather than fabricated literature judgments.
+- The backend refuses to generate a screening judgment when a file has no extractable body text. Titles and filenames are metadata only; they are never treated as evidence for relevance.
 - The frontend never asks users for model URLs, backend proxy addresses, or API keys.

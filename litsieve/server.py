@@ -47,6 +47,65 @@ DEEPSEEK_ENDPOINT = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.co
 DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 MODEL_TEXT_CHUNK_CHARS = int(os.environ.get("MODEL_TEXT_CHUNK_CHARS", "18000"))
 MODEL_MAX_DIRECT_CHARS = int(os.environ.get("MODEL_MAX_DIRECT_CHARS", "54000"))
+MIN_EXTRACTED_TEXT_CHARS = int(os.environ.get("MIN_EXTRACTED_TEXT_CHARS", "80"))
+PREFERRED_TESSERACT_LANGS = [
+    "eng",
+    "chi_sim",
+    "chi_tra",
+    "jpn",
+    "jpn_vert",
+    "kor",
+    "rus",
+    "ara",
+    "deu",
+    "fra",
+    "spa",
+    "por",
+    "ita",
+    "hin",
+    "ben",
+    "san",
+    "tha",
+    "vie",
+    "ind",
+    "msa",
+    "mon",
+    "tur",
+    "ell",
+    "heb",
+    "urd",
+    "fas",
+    "tam",
+    "nep",
+    "ukr",
+    "nor",
+    "dan",
+    "fin",
+    "nld",
+    "swe",
+    "pol",
+    "ces",
+    "slk",
+    "ron",
+    "bul",
+    "srp",
+    "hun",
+    "lat",
+    "amh",
+    "kat",
+    "aze",
+    "afr",
+    "mkd",
+    "tgk",
+    "uzb",
+    "kaz",
+    "kir",
+    "som",
+    "swa",
+    "yor",
+    "asm",
+    "pan",
+]
 
 
 class APIError(Exception):
@@ -154,7 +213,21 @@ def analyze_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not api_key:
         raise APIError(503, "DeepSeek 后端尚未配置 DEEPSEEK_API_KEY，系统不能生成正式文献筛选结论。")
 
+    unreadable = [material for material in materials if not has_enough_text(material)]
+    if unreadable:
+        names = "、".join(material["title"] for material in unreadable[:5])
+        suffix = f"等 {len(unreadable)} 份材料" if len(unreadable) > 5 else ""
+        raise APIError(
+            422,
+            f"以下材料未能抽取到足够正文，系统不会依据标题或文件名生成筛选结论：{names}{suffix}。请上传文本版 PDF、清晰扫描件或可复制文字的文件。",
+        )
+
     return {"engineMode": "deepseek", "results": analyze_with_deepseek(request, materials, api_key)}
+
+
+def has_enough_text(material: dict[str, Any]) -> bool:
+    text = re.sub(r"\s+", "", material.get("text", ""))
+    return len(text) >= MIN_EXTRACTED_TEXT_CHARS
 
 
 def build_materials(metadata: list[dict[str, Any]], files: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -279,13 +352,34 @@ def extract_image_text(content: bytes, ext: str) -> dict[str, Any]:
         image_file.write(content)
         image_file.flush()
         completed = subprocess.run(
-            [tesseract, image_file.name, "stdout", "-l", os.environ.get("TESSERACT_LANG", "eng+chi_sim+jpn")],
+            [tesseract, image_file.name, "stdout", "-l", get_tesseract_lang_arg(tesseract)],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=False,
         )
     return {"method": "tesseract", "text": completed.stdout.strip(), "pages": []}
+
+
+def get_tesseract_lang_arg(tesseract: str) -> str:
+    configured = os.environ.get("TESSERACT_LANG", "").strip()
+    if configured:
+        return configured
+
+    try:
+        completed = subprocess.run(
+            [tesseract, "--list-langs"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except Exception:
+        return "eng"
+
+    installed = {line.strip() for line in completed.stdout.splitlines() if line.strip() and not line.startswith("List of")}
+    selected = [language for language in PREFERRED_TESSERACT_LANGS if language in installed]
+    return "+".join(selected or ["eng"])
 
 
 def analyze_with_deepseek(request: dict[str, Any], materials: list[dict[str, Any]], api_key: str) -> list[dict[str, Any]]:
@@ -400,12 +494,15 @@ def build_model_prompt(request: dict[str, Any], materials: list[dict[str, Any]],
             },
             "rules": [
                 "Always output in the selected outputLanguage.",
-                "Read and evaluate the supplied material content before deciding status.",
+                "Read and evaluate ONLY the supplied material text before deciding status.",
+                "The title, filename, file type, and extraction method are metadata for identification only. Do not use them as evidence of relevance.",
                 "Never tell the user to wait for DeepSeek, OCR, backend, or future analysis. Return the final screening result from the content you received.",
                 "Do not require literal keyword appearance when keywordMode is concept.",
                 "Translate concepts across languages internally.",
                 "If a whole book is not relevant but one chapter is, status should be maybe and usableScope must name that chapter or section.",
                 "Only reject after content analysis shows it cannot support the user's need.",
+                "In contentSummary, cite concrete themes, objects, periods, chapters, pages, or passages found in the supplied text.",
+                "In selectionReason, explain the decision using evidence from the supplied text, not the title.",
             ]
             + (extra_rules or []),
             "materials": compact_materials,
@@ -473,98 +570,6 @@ def normalize_result(result: dict[str, Any], materials: list[dict[str, Any]], in
         "limitations": result.get("limitations") or "",
         "segments": result.get("segments") or [],
     }
-
-
-def local_result(request: dict[str, Any], material: dict[str, Any]) -> dict[str, Any]:
-    text = material["text"].strip()
-    terms = expand_terms(request.get("keyword", ""))
-    score = relevance_score(text, terms)
-    if not text:
-        status = "maybe"
-        score = max(score, 55)
-        summary = "该材料未抽取到可分析正文。"
-        scope = "正式部署时由 DeepSeek 与 OCR 服务读取全文后给出章节、页码或片段范围。"
-        reason = "未抽取到可分析正文，系统不能生成筛选结论。"
-    else:
-        status = "keep" if score >= request.get("threshold", 68) else "maybe" if score >= 30 else "reject"
-        summary = summarize_text(material["type"], text)
-        scope = usable_scope(status)
-        reason = local_reason(status, terms, text)
-
-    return {
-        "id": material["id"],
-        "title": material["title"],
-        "status": status,
-        "score": score,
-        "tags": [term for term in terms[:5] if term],
-        "contentSummary": summary,
-        "usableScope": scope,
-        "selectionReason": reason,
-        "limitations": "该结果不能替代 DeepSeek 后端的正式全文分析。",
-        "segments": make_segments(text),
-    }
-
-
-def expand_terms(keyword: str) -> list[str]:
-    base = [term.strip().lower() for term in re.split(r"[\s,，、;；/]+", keyword) if len(term.strip()) > 1]
-    concept_map = {
-        "文学理论": ["文学理论", "文艺理论", "文学批评", "literary theory", "structuralism", "结构主义", "feminism", "女性主义", "deconstruction", "解构主义"],
-        "literary": ["文学理论", "文艺理论", "literary theory", "literary criticism"],
-        "敬语": ["敬语", "敬語", "keigo", "honorific", "politeness", "待遇表現", "尊敬語", "謙譲語", "丁寧語"],
-    }
-    expanded = list(base)
-    for key, terms in concept_map.items():
-        if any(key in term for term in base):
-            expanded.extend(terms)
-    return list(dict.fromkeys(expanded))
-
-
-def relevance_score(text: str, terms: list[str]) -> int:
-    haystack = text.lower()
-    hits = sum(1 for term in terms if term and term.lower() in haystack)
-    method_hits = sum(1 for term in ["研究", "分析", "考察", "method", "data", "資料", "調査"] if term.lower() in haystack)
-    return max(12, min(95, 18 + hits * 18 + method_hits * 6))
-
-
-def summarize_text(material_type: str, text: str) -> str:
-    clean = re.sub(r"\s+", " ", text).strip()
-    return f"{type_label(material_type)}材料。可读正文显示：{clean[:220]}{'...' if len(clean) > 220 else ''}"
-
-
-def usable_scope(status: str) -> str:
-    if status == "keep":
-        return "可作为核心材料进入精读，优先核对研究对象、方法、结论和引用页码。"
-    if status == "maybe":
-        return "可能存在局部可用章节或片段，建议限定引用范围后使用。"
-    return "当前抽取正文未显示与研究需求的直接支撑关系。"
-
-
-def local_reason(status: str, terms: list[str], text: str) -> str:
-    matched = [term for term in terms if term and term.lower() in text.lower()]
-    if status == "reject":
-        return "本地抽取文本未发现足够的主题、概念或研究对象线索。"
-    if matched:
-        return f"本地抽取文本中出现相关概念线索：{'、'.join(matched[:5])}。"
-    return "本地抽取文本显示可能相关，但需要 DeepSeek 完整分析确认概念对应关系。"
-
-
-def make_segments(text: str) -> list[dict[str, Any]]:
-    if not text.strip():
-        return [{"label": "全文", "score": 55, "text": ""}]
-    parts = [part.strip() for part in re.split(r"(?=第[一二三四五六七八九十\d]+[章节節])|\n{2,}", text) if part.strip()]
-    return [{"label": f"片段 {index + 1}", "score": 60, "text": part[:160]} for index, part in enumerate(parts[:5])]
-
-
-def type_label(material_type: str) -> str:
-    return {
-        "paper": "论文/期刊",
-        "book": "专著/编著",
-        "news": "新闻/报纸",
-        "report": "报告",
-        "image": "图片/扫描件",
-        "snippet": "文字片段",
-        "mixed": "混合材料",
-    }.get(material_type, "材料")
 
 
 def strip_extension(filename: str) -> str:
