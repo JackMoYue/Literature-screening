@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LitSieve 文献筛选工作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 4.8h7.2a4.2 4.2 0 0 1 0 8.4H5z" />
+              <path d="M5 13.2h8.4a4 4 0 0 1 0 8H5z" />
+              <path d="M18.8 4.6l-2.4 2.5 2.4 2.5" />
+            </svg>
+          </span>
+          <div>
+            <strong>LitSieve</strong>
+            <small>文献相关性筛选</small>
+          </div>
+        </div>
+        <nav class="workspace-nav" aria-label="工作台视图">
+          <button class="nav-item is-active" data-view="screening" type="button">筛选台</button>
+          <button class="nav-item" data-view="rules" type="button">规则库</button>
+          <button class="nav-item" data-view="export" type="button">导出</button>
+        </nav>
+        <div class="top-actions">
+          <button class="icon-button" type="button" title="保存当前项目" aria-label="保存当前项目">
+            <svg viewBox="0 0 24 24"><path d="M5 4h12l2 2v14H5z" /><path d="M8 4v6h8V4" /><path d="M8 20v-6h8v6" /></svg>
+          </button>
+          <button class="primary ghost" id="loadDemo" type="button">载入示例</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="intake-panel">
+          <section class="panel-section">
+            <div class="section-title">
+              <span>文献输入</span>
+              <small id="fileCount">0 篇</small>
+            </div>
+            <label class="drop-zone" id="dropZone">
+              <input id="fileInput" type="file" multiple accept=".txt,.md,.csv,.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.tif,.tiff" />
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="M7 8l5-5 5 5" />
+                <path d="M5 15v3a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3" />
+              </svg>
+              <strong>拖入文献或材料</strong>
+              <span>论文、专著、报告、新闻、图片型 PDF 都可进入同一筛选流程</span>
+            </label>
+            <div class="file-actions">
+              <button class="text-button" id="toggleFiles" type="button">展开全部</button>
+              <button class="text-button danger" id="clearFiles" type="button">清空列表</button>
+            </div>
+            <div class="file-stack" id="fileStack" aria-live="polite"></div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-title">
+              <span>筛选要求</span>
+              <small>可解释规则</small>
+            </div>
+            <label class="field">
+              <span>核心关键词</span>
+              <input id="keywordInput" value="敬语" placeholder="例如：文学理论、literary theory、politeness" />
+            </label>
+            <label class="field">
+              <span>关键词匹配方式</span>
+              <select id="keywordMode">
+                <option value="concept">概念相关即可，不要求原词出现</option>
+                <option value="exact">必须出现核心关键词或明确译名</option>
+              </select>
+            </label>
+            <div class="field-grid">
+              <label class="field">
+                <span>材料类型</span>
+                <select id="materialType">
+                  <option value="mixed">混合材料</option>
+                  <option value="paper">论文/期刊</option>
+                  <option value="book">专著/编著</option>
+                  <option value="news">新闻/报纸</option>
+                  <option value="report">调研/会议报告</option>
+                  <option value="image">图片/扫描件</option>
+                  <option value="snippet">文字片段</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>输出语言</span>
+                <select id="outputLanguage"></select>
+              </label>
+            </div>
+            <label class="field">
+              <span>论文/课程意图</span>
+              <textarea id="intentInput" rows="5">课程《敬语概论》的论文，需要文献主旨直接讨论日语敬语、敬语体系、待遇表现、敬语教育或社会语言学中的敬语使用，而不是仅在正文中顺带提到敬语。</textarea>
+            </label>
+            <label class="field">
+              <span>直接粘贴材料片段</span>
+              <textarea id="pasteInput" rows="4" placeholder="可以粘贴一段摘要、目录、书中章节、新闻正文或图片识别后的文字。点击开始筛选时会作为一条材料分析。"></textarea>
+            </label>
+            <div class="rules">
+              <label><input type="checkbox" class="rule-check" value="section" checked /> 允许章节/段落局部可用</label>
+              <label><input type="checkbox" class="rule-check" value="method" checked /> 识别研究对象、材料和方法</label>
+              <label><input type="checkbox" class="rule-check" value="exclude" checked /> 标出只作背景提及的材料</label>
+              <label><input type="checkbox" class="rule-check" value="ocr" checked /> PDF/图片由模型识别全文后再判断</label>
+            </div>
+          </section>
+
+          <section class="panel-section compact">
+            <div class="section-title">
+              <span>DeepSeek 分析引擎</span>
+              <small id="modelStatus">已内置</small>
+            </div>
+            <p class="engine-card">系统自动读取文本、PDF、图片和扫描件，进行跨语言概念匹配，并按所选输出语言生成内容概述与选用理由。</p>
+          </section>
+
+          <section class="panel-section compact">
+            <div class="threshold-row">
+              <label for="thresholdInput">核心可用阈值</label>
+              <output id="thresholdValue">68</output>
+            </div>
+            <input id="thresholdInput" type="range" min="45" max="85" value="68" />
+            <p class="helper-text">阈值表示“判为核心可用”的严格程度。数值越高，越要求材料的主旨、章节位置和研究对象都贴合；低于阈值但有可用章节的材料会进入“局部可用”。</p>
+            <button class="primary" id="analyzeButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16" /><path d="M7 16l3-4 3 2 4-7" /></svg>
+              开始筛选
+            </button>
+          </section>
+        </aside>
+
+        <section class="review-board" aria-label="筛选结果">
+          <div class="view-screen is-active" id="screeningView">
+            <div class="board-header">
+              <div>
+                <h1>敬语材料初筛</h1>
+                <p id="boardSummary">载入示例或上传材料后，系统会定位整篇、章节或段落层面的可用性，并给出学术化理由。</p>
+              </div>
+              <div class="score-card">
+                <span>可用材料</span>
+                <strong id="hitRate">--</strong>
+              </div>
+            </div>
+
+            <div class="columns">
+              <section class="result-column keep" data-status="keep">
+                <header>
+                  <div>
+                    <span class="status-dot"></span>
+                    <strong>核心可用</strong>
+                  </div>
+                  <small id="keepCount">0</small>
+                </header>
+                <div class="paper-list" id="keepList"></div>
+              </section>
+              <section class="result-column maybe" data-status="maybe">
+                <header>
+                  <div>
+                    <span class="status-dot"></span>
+                    <strong>局部可用/模型分析</strong>
+                  </div>
+                  <small id="maybeCount">0</small>
+                </header>
+                <div class="paper-list" id="maybeList"></div>
+              </section>
+              <section class="result-column reject" data-status="reject">
+                <header>
+                  <div>
+                    <span class="status-dot"></span>
+                    <strong>不建议使用</strong>
+                  </div>
+                  <small id="rejectCount">0</small>
+                </header>
+                <div class="paper-list" id="rejectList"></div>
+              </section>
+            </div>
+          </div>
+
+          <div class="view-screen" id="rulesView">
+            <div class="board-header">
+              <div>
+                <h1>规则库</h1>
+                <p>这里把筛选依据写成可解释规则，方便之后做成不同学科、不同作业类型的模板。</p>
+              </div>
+            </div>
+            <div class="rule-library">
+              <article><strong>主旨相关</strong><span>可以是概念相关，不必机械要求关键词原词出现；是否要求原词出现由用户选择。</span></article>
+              <article><strong>局部相关</strong><span>整本文献不以该主题为中心，但某章、某节、某段可支持用户论点。</span></article>
+              <article><strong>材料类型</strong><span>论文看研究问题与方法；专著看目录和章节；新闻看事实材料价值；报告看数据和调查对象。</span></article>
+              <article><strong>全文读取/输出语言</strong><span>图片型 PDF、扫描件和照片由模型读取全文；结果说明按用户选择的输出语言生成。</span></article>
+              <article><strong>排除依据</strong><span>仅在背景、例子、脚注、参考文献中出现关键词，或主题明显转向其他对象时，不作为核心文献。</span></article>
+            </div>
+          </div>
+
+          <div class="view-screen" id="exportView">
+            <div class="board-header">
+              <div>
+                <h1>导出</h1>
+                <p>把筛选结果导出为论文写作可用的说明，而不是只有简单的 include/exclude。</p>
+              </div>
+              <button class="primary" id="refreshExport" type="button">生成导出文本</button>
+            </div>
+            <textarea class="export-box" id="exportBox" readonly placeholder="筛选后点击“生成导出文本”，这里会出现可复制的文献评估表。"></textarea>
+          </div>
+        </section>
+
+        <aside class="inspector" aria-label="文献解释">
+          <div class="inspector-header">
+            <span>解释面板</span>
+            <button class="icon-button" id="copyReport" type="button" title="复制筛选报告" aria-label="复制筛选报告">
+              <svg viewBox="0 0 24 24"><path d="M9 9h10v10H9z" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+          </div>
+          <div id="inspectorBody" class="inspector-body empty">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h10" /></svg>
+            <p>点击任意文献查看保留或剔除理由。</p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
