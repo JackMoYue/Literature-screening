@@ -1,10 +1,8 @@
 services:
   - type: web
     name: litsieve
-    env: python
-    plan: starter
-    buildCommand: pip install -r requirements.txt
-    startCommand: HOST=0.0.0.0 python server.py
+    runtime: docker
+    plan: free
     healthCheckPath: /healthz
     envVars:
       - key: DEEPSEEK_API_KEY
